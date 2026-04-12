@@ -3,11 +3,11 @@ using System.Data;
 using System.Data.OleDb;
 using System.Windows.Forms;
 
-namespace WindowsFormsApp1
+namespace LibraryApp
 {
     public partial class Form1 : Form
     {
-        private string connectionString = @"Provider=Microsoft.Jet.OLEDB.4.0;Data Source=library1.mdb;";
+        string connectionString = @"Provider=Microsoft.Jet.OLEDB.4.0;Data Source=library1.mdb;";
 
         public Form1()
         {
@@ -16,24 +16,17 @@ namespace WindowsFormsApp1
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            LoadBooks();
-            LoadReaders();
-            LoadEmployees();
-            LoadLoans();
-            LoadOperations();
-            LoadComboBoxes();
-            LoadGenres();
-            HideColumns();
+            LoadAll();
         }
 
+        // ================= БАЗА =================
         private DataTable ExecuteQuery(string query)
         {
             DataTable dt = new DataTable();
             using (OleDbConnection conn = new OleDbConnection(connectionString))
             {
                 conn.Open();
-                OleDbDataAdapter adapter = new OleDbDataAdapter(query, conn);
-                adapter.Fill(dt);
+                new OleDbDataAdapter(query, conn).Fill(dt);
             }
             return dt;
         }
@@ -43,488 +36,271 @@ namespace WindowsFormsApp1
             using (OleDbConnection conn = new OleDbConnection(connectionString))
             {
                 conn.Open();
-                using (OleDbCommand cmd = new OleDbCommand(query, conn))
-                {
-                    cmd.ExecuteNonQuery();
-                }
+                new OleDbCommand(query, conn).ExecuteNonQuery();
             }
         }
 
-        // ==================== КНИГИ ====================
+        private void LoadAll()
+        {
+            LoadBooks();
+            LoadReaders();
+            LoadEmployees();
+            LoadLoans();
+            LoadOperations();
+            LoadCombos();
+        }
+
+        // ================= КНИГИ =================
         private void LoadBooks()
         {
-            string query = "SELECT [ID Книги], Название, [ФИО автора], [Дата написания], Жанр, Стоимость FROM Книги";
-            dataGridViewBooks.DataSource = ExecuteQuery(query);
+            dataGridViewBooks.DataSource =
+                ExecuteQuery("SELECT [ID Книги], Название, [ФИО автора], [Дата написания], Жанр, Стоимость FROM Книги");
         }
 
         private void buttonBookAdd_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(textBoxBookName.Text))
-            {
-                MessageBox.Show("Введите название книги!");
-                return;
-            }
+            if (string.IsNullOrWhiteSpace(textBoxBookName.Text)) return;
 
-            try
-            {
-                string nazvanie = textBoxBookName.Text;
-                string author = "Неизвестен";
-                string genre = comboBoxGenre.Text;
-                int year = DateTime.Now.Year;
-                decimal price = 0;
+            decimal price = 0;
+            decimal.TryParse(textBoxPrice.Text, out price);
 
-                string query = $@"INSERT INTO Книги (Название, [ФИО автора], [Дата написания], Жанр, Стоимость) 
-                               VALUES ('{nazvanie}', '{author}', {year}, '{genre}', {price})";
+            DateTime date = dateTimePickerBook.Value;
 
-                ExecuteNonQuery(query);
-                LoadBooks();
-                LoadGenres();
-                textBoxBookName.Clear();
-                MessageBox.Show("Книга добавлена!");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка: " + ex.Message);
-            }
+            ExecuteNonQuery($@"
+            INSERT INTO Книги (Название, [ФИО автора], [Дата написания], Жанр, Стоимость)
+            VALUES ('{textBoxBookName.Text}',
+                    '{textBoxAuthor.Text}',
+                    #{date:yyyy-MM-dd}#,
+                    '{textBoxGenre.Text}',
+                    {price})");
+
+            LoadBooks();
         }
 
         private void buttonBookUpdate_Click(object sender, EventArgs e)
         {
-            if (dataGridViewBooks.CurrentRow == null)
-            {
-                MessageBox.Show("Выберите книгу!");
-                return;
-            }
+            if (dataGridViewBooks.CurrentRow == null) return;
 
-            try
-            {
-                int id = Convert.ToInt32(dataGridViewBooks.CurrentRow.Cells["ID Книги"].Value);
-                string nazvanie = textBoxBookName.Text;
-                string genre = comboBoxGenre.Text;
+            int id = Convert.ToInt32(dataGridViewBooks.CurrentRow.Cells[0].Value);
 
-                string query = $@"UPDATE Книги SET Название = '{nazvanie}', Жанр = '{genre}' 
-                               WHERE [ID Книги] = {id}";
+            decimal price = 0;
+            decimal.TryParse(textBoxPrice.Text, out price);
 
-                ExecuteNonQuery(query);
-                LoadBooks();
-                textBoxBookName.Clear();
-                MessageBox.Show("Книга изменена!");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка: " + ex.Message);
-            }
+            DateTime date = dateTimePickerBook.Value;
+
+            ExecuteNonQuery($@"
+            UPDATE Книги SET 
+                Название='{textBoxBookName.Text}',
+                [ФИО автора]='{textBoxAuthor.Text}',
+                [Дата написания]=#{date:yyyy-MM-dd}#,
+                Жанр='{textBoxGenre.Text}',
+                Стоимость={price}
+            WHERE [ID Книги]={id}");
+
+            LoadBooks();
         }
 
         private void buttonBookDelete_Click(object sender, EventArgs e)
         {
-            if (dataGridViewBooks.CurrentRow == null)
-            {
-                MessageBox.Show("Выберите книгу!");
-                return;
-            }
+            if (dataGridViewBooks.CurrentRow == null) return;
 
-            if (MessageBox.Show("Удалить книгу?", "Подтверждение", MessageBoxButtons.YesNo) == DialogResult.Yes)
-            {
-                try
-                {
-                    int id = Convert.ToInt32(dataGridViewBooks.CurrentRow.Cells["ID Книги"].Value);
-                    string query = $"DELETE FROM Книги WHERE [ID Книги] = {id}";
-                    ExecuteNonQuery(query);
-                    LoadBooks();
-                    LoadGenres();
-                    MessageBox.Show("Книга удалена!");
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Ошибка: " + ex.Message);
-                }
-            }
+            int id = Convert.ToInt32(dataGridViewBooks.CurrentRow.Cells[0].Value);
+
+            ExecuteNonQuery($"DELETE FROM Книги WHERE [ID Книги]={id}");
+            LoadBooks();
         }
 
-        // ==================== ЧИТАТЕЛИ ====================
+        // ================= ЧИТАТЕЛИ =================
         private void LoadReaders()
         {
-            string query = "SELECT [ID Читателя], ФИО, [Номер телефона] FROM Читатель";
-            dataGridViewReaders.DataSource = ExecuteQuery(query);
+            dataGridViewReaders.DataSource =
+                ExecuteQuery("SELECT [ID Читателя], ФИО, [Номер телефона] FROM Читатель");
         }
 
         private void buttonReaderAdd_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(textBoxReaderName.Text))
-            {
-                MessageBox.Show("Введите ФИО читателя!");
-                return;
-            }
+            if (string.IsNullOrWhiteSpace(textBoxReader.Text)) return;
 
-            try
-            {
-                string fio = textBoxReaderName.Text;
-                string phone = textBoxReaderInfo.Text;
+            ExecuteNonQuery($@"
+            INSERT INTO Читатель (ФИО, [Номер телефона])
+            VALUES ('{textBoxReader.Text}', '{textBoxPhone.Text}')");
 
-                string query = $"INSERT INTO Читатель (ФИО, [Номер телефона]) VALUES ('{fio}', '{phone}')";
-                ExecuteNonQuery(query);
-                LoadReaders();
-                textBoxReaderName.Clear();
-                textBoxReaderInfo.Clear();
-                MessageBox.Show("Читатель добавлен!");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка: " + ex.Message);
-            }
+            LoadReaders();
         }
 
         private void buttonReaderUpdate_Click(object sender, EventArgs e)
         {
-            if (dataGridViewReaders.CurrentRow == null)
-            {
-                MessageBox.Show("Выберите читателя!");
-                return;
-            }
+            if (dataGridViewReaders.CurrentRow == null) return;
 
-            try
-            {
-                int id = Convert.ToInt32(dataGridViewReaders.CurrentRow.Cells["ID Читателя"].Value);
-                string fio = textBoxReaderName.Text;
-                string phone = textBoxReaderInfo.Text;
+            int id = Convert.ToInt32(dataGridViewReaders.CurrentRow.Cells[0].Value);
 
-                string query = $"UPDATE Читатель SET ФИО = '{fio}', [Номер телефона] = '{phone}' WHERE [ID Читателя] = {id}";
-                ExecuteNonQuery(query);
-                LoadReaders();
-                textBoxReaderName.Clear();
-                textBoxReaderInfo.Clear();
-                MessageBox.Show("Читатель изменен!");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка: " + ex.Message);
-            }
+            ExecuteNonQuery($@"
+            UPDATE Читатель SET 
+                ФИО='{textBoxReader.Text}', 
+                [Номер телефона]='{textBoxPhone.Text}'
+            WHERE [ID Читателя]={id}");
+
+            LoadReaders();
         }
 
         private void buttonReaderDelete_Click(object sender, EventArgs e)
         {
-            if (dataGridViewReaders.CurrentRow == null)
-            {
-                MessageBox.Show("Выберите читателя!");
-                return;
-            }
+            if (dataGridViewReaders.CurrentRow == null) return;
 
-            if (MessageBox.Show("Удалить читателя?", "Подтверждение", MessageBoxButtons.YesNo) == DialogResult.Yes)
-            {
-                try
-                {
-                    int id = Convert.ToInt32(dataGridViewReaders.CurrentRow.Cells["ID Читателя"].Value);
-                    string query = $"DELETE FROM Читатель WHERE [ID Читателя] = {id}";
-                    ExecuteNonQuery(query);
-                    LoadReaders();
-                    MessageBox.Show("Читатель удален!");
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Ошибка: " + ex.Message);
-                }
-            }
+            int id = Convert.ToInt32(dataGridViewReaders.CurrentRow.Cells[0].Value);
+
+            ExecuteNonQuery($"DELETE FROM Читатель WHERE [ID Читателя]={id}");
+            LoadReaders();
         }
 
-        // ==================== СОТРУДНИКИ ====================
+        // ================= СОТРУДНИКИ =================
         private void LoadEmployees()
         {
-            string query = "SELECT [ID Сотрудника], ФИО, Должность FROM Сотрудник";
-            dataGridViewEmployees.DataSource = ExecuteQuery(query);
+            dataGridViewEmployees.DataSource =
+                ExecuteQuery("SELECT [ID Сотрудника], ФИО, Должность FROM Сотрудник");
         }
 
         private void buttonEmployeeAdd_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(textBoxEmployeeName.Text))
-            {
-                MessageBox.Show("Введите ФИО сотрудника!");
-                return;
-            }
+            if (string.IsNullOrWhiteSpace(textBoxEmployee.Text)) return;
 
-            try
-            {
-                string fio = textBoxEmployeeName.Text;
-                string dolgnost = textBoxEmployeeAge.Text;
+            ExecuteNonQuery($@"
+            INSERT INTO Сотрудник (ФИО, Должность)
+            VALUES ('{textBoxEmployee.Text}', '{textBoxPosition.Text}')");
 
-                string query = $"INSERT INTO Сотрудник (ФИО, Должность) VALUES ('{fio}', '{dolgnost}')";
-                ExecuteNonQuery(query);
-                LoadEmployees();
-                textBoxEmployeeName.Clear();
-                textBoxEmployeeAge.Clear();
-                MessageBox.Show("Сотрудник добавлен!");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка: " + ex.Message);
-            }
+            LoadEmployees();
         }
 
         private void buttonEmployeeUpdate_Click(object sender, EventArgs e)
         {
-            if (dataGridViewEmployees.CurrentRow == null)
-            {
-                MessageBox.Show("Выберите сотрудника!");
-                return;
-            }
+            if (dataGridViewEmployees.CurrentRow == null) return;
 
-            try
-            {
-                int id = Convert.ToInt32(dataGridViewEmployees.CurrentRow.Cells["ID Сотрудника"].Value);
-                string fio = textBoxEmployeeName.Text;
-                string dolgnost = textBoxEmployeeAge.Text;
+            int id = Convert.ToInt32(dataGridViewEmployees.CurrentRow.Cells[0].Value);
 
-                string query = $"UPDATE Сотрудник SET ФИО = '{fio}', Должность = '{dolgnost}' WHERE [ID Сотрудника] = {id}";
-                ExecuteNonQuery(query);
-                LoadEmployees();
-                textBoxEmployeeName.Clear();
-                textBoxEmployeeAge.Clear();
-                MessageBox.Show("Сотрудник изменен!");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка: " + ex.Message);
-            }
+            ExecuteNonQuery($@"
+            UPDATE Сотрудник SET 
+                ФИО='{textBoxEmployee.Text}', 
+                Должность='{textBoxPosition.Text}'
+            WHERE [ID Сотрудника]={id}");
+
+            LoadEmployees();
         }
 
         private void buttonEmployeeDelete_Click(object sender, EventArgs e)
         {
-            if (dataGridViewEmployees.CurrentRow == null)
-            {
-                MessageBox.Show("Выберите сотрудника!");
-                return;
-            }
+            if (dataGridViewEmployees.CurrentRow == null) return;
 
-            if (MessageBox.Show("Удалить сотрудника?", "Подтверждение", MessageBoxButtons.YesNo) == DialogResult.Yes)
-            {
-                try
-                {
-                    int id = Convert.ToInt32(dataGridViewEmployees.CurrentRow.Cells["ID Сотрудника"].Value);
-                    string query = $"DELETE FROM Сотрудник WHERE [ID Сотрудника] = {id}";
-                    ExecuteNonQuery(query);
-                    LoadEmployees();
-                    MessageBox.Show("Сотрудник удален!");
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Ошибка: " + ex.Message);
-                }
-            }
+            int id = Convert.ToInt32(dataGridViewEmployees.CurrentRow.Cells[0].Value);
+
+            ExecuteNonQuery($"DELETE FROM Сотрудник WHERE [ID Сотрудника]={id}");
+            LoadEmployees();
         }
 
-        // ==================== ВЫДАЧА КНИГ ====================
+        // ================= ВЫДАЧА (JOIN) =================
         private void LoadLoans()
         {
-            string query = @"SELECT Выдача.[ID Операции], 
-                                    Книги.Название AS Книга, 
-                                    Читатель.ФИО AS Читатель, 
-                                    Сотрудник.ФИО AS Оператор, 
-                                    Выдача.[Дата выдачи], 
-                                    Выдача.[Дата возврата], 
-                                    Выдача.[Фактическая Дата Возврата], 
-                                    Выдача.[Тип Операции]
-                             FROM ((Выдача 
-                             INNER JOIN Книги ON Выдача.[ID Книги] = Книги.[ID Книги])
-                             INNER JOIN Читатель ON Выдача.Клиент = Читатель.[ID Читателя])
-                             INNER JOIN Сотрудник ON Выдача.Оператор = Сотрудник.[ID Сотрудника]
-                             ORDER BY Выдача.[ID Операции] DESC";
-            dataGridViewLoans.DataSource = ExecuteQuery(query);
+            dataGridViewLoans.DataSource =
+                ExecuteQuery(@"
+                SELECT Выдача.[ID Операции],
+                       Книги.Название AS Книга,
+                       Читатель.ФИО AS Читатель,
+                       Сотрудник.ФИО AS Сотрудник,
+                       Выдача.[Дата выдачи],
+                       Выдача.[Дата возврата],
+                       Выдача.[Тип Операции]
+                FROM ((Выдача
+                INNER JOIN Книги ON Выдача.[ID Книги]=Книги.[ID Книги])
+                INNER JOIN Читатель ON Выдача.Клиент=Читатель.[ID Читателя])
+                INNER JOIN Сотрудник ON Выдача.Оператор=Сотрудник.[ID Сотрудника]");
         }
 
-        private void buttonLoanIssue_Click(object sender, EventArgs e)
+        private void buttonIssue_Click(object sender, EventArgs e)
         {
-            if (comboBoxLoanBook.SelectedValue == null)
-            {
-                MessageBox.Show("Выберите книгу!");
+            if (comboBoxBook.SelectedValue == null ||
+                comboBoxReader.SelectedValue == null ||
+                comboBoxEmployee.SelectedValue == null)
                 return;
-            }
-            if (comboBoxLoanReader.SelectedValue == null)
-            {
-                MessageBox.Show("Выберите читателя!");
-                return;
-            }
-            if (comboBoxLoanEmployee.SelectedValue == null)
-            {
-                MessageBox.Show("Выберите сотрудника!");
-                return;
-            }
 
-            try
-            {
-                int bookId = Convert.ToInt32(comboBoxLoanBook.SelectedValue);
-                int readerId = Convert.ToInt32(comboBoxLoanReader.SelectedValue);
-                int employeeId = Convert.ToInt32(comboBoxLoanEmployee.SelectedValue);
-                DateTime dateOut = DateTime.Now;
-                DateTime dateReturn = DateTime.Now.AddDays(14);
+            ExecuteNonQuery($@"
+            INSERT INTO Выдача ([Тип Операции], Оператор, Клиент, [Дата выдачи], [Дата возврата], [ID Книги])
+            VALUES ('Выдача',
+                    {comboBoxEmployee.SelectedValue},
+                    {comboBoxReader.SelectedValue},
+                    #{DateTime.Now:yyyy-MM-dd}#,
+                    #{DateTime.Now.AddDays(14):yyyy-MM-dd}#,
+                    {comboBoxBook.SelectedValue})");
 
-                string query = $@"INSERT INTO Выдача ([Тип Операции], Оператор, Клиент, [Дата выдачи], [Дата возврата], [ID Книги]) 
-                               VALUES ('Выдача', {employeeId}, {readerId}, #{dateOut:yyyy-MM-dd}#, #{dateReturn:yyyy-MM-dd}#, {bookId})";
-
-                ExecuteNonQuery(query);
-                LoadLoans();
-                MessageBox.Show($"Книга выдана! Дата возврата: {dateReturn:dd.MM.yyyy}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка: " + ex.Message);
-            }
+            LoadLoans();
         }
 
-        private void buttonLoanReturn_Click(object sender, EventArgs e)
+        private void buttonReturn_Click(object sender, EventArgs e)
         {
-            if (dataGridViewLoans.CurrentRow == null)
-            {
-                MessageBox.Show("Выберите запись о выдаче!");
-                return;
-            }
+            if (dataGridViewLoans.CurrentRow == null) return;
 
-            int id = Convert.ToInt32(dataGridViewLoans.CurrentRow.Cells["ID Операции"].Value);
-            string bookName = dataGridViewLoans.CurrentRow.Cells["Книга"].Value.ToString();
+            int id = Convert.ToInt32(dataGridViewLoans.CurrentRow.Cells[0].Value);
 
-            if (MessageBox.Show($"Вернуть книгу '{bookName}'?", "Подтверждение", MessageBoxButtons.YesNo) == DialogResult.Yes)
-            {
-                try
-                {
-                    DateTime dateNow = DateTime.Now;
-                    string query = $@"UPDATE Выдача SET [Тип Операции] = 'Возврат', [Фактическая Дата Возврата] = #{dateNow:yyyy-MM-dd}# 
-                                   WHERE [ID Операции] = {id}";
+            ExecuteNonQuery($@"
+            UPDATE Выдача 
+            SET [Тип Операции]='Возврат',
+                [Фактическая Дата Возврата]=#{DateTime.Now:yyyy-MM-dd}#
+            WHERE [ID Операции]={id}");
 
-                    ExecuteNonQuery(query);
-                    LoadLoans();
-                    MessageBox.Show("Книга возвращена!");
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Ошибка: " + ex.Message);
-                }
-            }
+            LoadLoans();
         }
 
-        // ==================== ВНУТРЕННИЕ ОПЕРАЦИИ ====================
+        // ================= ОПЕРАЦИИ (JOIN) =================
         private void LoadOperations()
         {
-            string query = @"SELECT [Внутренние Операции].[ID Операции], 
-                                    [Внутренние Операции].[Тип операции], 
-                                    Сотрудник.ФИО AS Сотрудник, 
-                                    [Внутренние Операции].Дата, 
-                                    Книги.Название AS Книга
-                             FROM ([Внутренние Операции] 
-                             INNER JOIN Сотрудник ON [Внутренние Операции].Сотрудник = Сотрудник.[ID Сотрудника])
-                             INNER JOIN Книги ON [Внутренние Операции].[ID Книги] = Книги.[ID Книги]
-                             ORDER BY [Внутренние Операции].[ID Операции] DESC";
-            dataGridViewOperations.DataSource = ExecuteQuery(query);
+            dataGridViewOperations.DataSource =
+                ExecuteQuery(@"
+                SELECT [Внутренние Операции].[ID Операции],
+                       [Тип операции],
+                       Сотрудник.ФИО,
+                       Книги.Название,
+                       Дата
+                FROM ([Внутренние Операции]
+                INNER JOIN Сотрудник ON Сотрудник.[ID Сотрудника]=[Внутренние Операции].Сотрудник)
+                INNER JOIN Книги ON Книги.[ID Книги]=[Внутренние Операции].[ID Книги]");
         }
 
         private void buttonOperationAdd_Click(object sender, EventArgs e)
         {
-            if (comboBoxOperationBook.SelectedValue == null)
-            {
-                MessageBox.Show("Выберите книгу!");
+            if (comboBoxBookOp.SelectedValue == null ||
+                comboBoxEmployeeOp.SelectedValue == null)
                 return;
-            }
-            if (comboBoxOperationEmployee.SelectedValue == null)
-            {
-                MessageBox.Show("Выберите сотрудника!");
-                return;
-            }
-            if (string.IsNullOrWhiteSpace(comboBoxOperationType.Text))
-            {
-                MessageBox.Show("Выберите тип операции!");
-                return;
-            }
 
-            try
-            {
-                int bookId = Convert.ToInt32(comboBoxOperationBook.SelectedValue);
-                int employeeId = Convert.ToInt32(comboBoxOperationEmployee.SelectedValue);
-                string type = comboBoxOperationType.Text;
-                DateTime date = DateTime.Now;
+            ExecuteNonQuery($@"
+            INSERT INTO [Внутренние Операции] ([Тип операции], Сотрудник, Дата, [ID Книги])
+            VALUES ('{comboBoxOperationType.Text}',
+                    {comboBoxEmployeeOp.SelectedValue},
+                    #{DateTime.Now:yyyy-MM-dd}#,
+                    {comboBoxBookOp.SelectedValue})");
 
-                string query = $@"INSERT INTO [Внутренние Операции] ([Тип операции], Сотрудник, Дата, [ID Книги]) 
-                               VALUES ('{type}', {employeeId}, #{date:yyyy-MM-dd}#, {bookId})";
-
-                ExecuteNonQuery(query);
-                LoadOperations();
-                MessageBox.Show("Операция добавлена!");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка: " + ex.Message);
-            }
+            LoadOperations();
         }
 
-        // ==================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ====================
-        private void LoadComboBoxes()
+        // ================= COMBO =================
+        private void LoadCombos()
         {
-            LoadCombo("SELECT [ID Книги], Название FROM Книги", "Название", "ID Книги", comboBoxLoanBook);
-            LoadCombo("SELECT [ID Книги], Название FROM Книги", "Название", "ID Книги", comboBoxOperationBook);
-            LoadCombo("SELECT [ID Читателя], ФИО FROM Читатель", "ФИО", "ID Читателя", comboBoxLoanReader);
-            LoadCombo("SELECT [ID Сотрудника], ФИО FROM Сотрудник", "ФИО", "ID Сотрудника", comboBoxLoanEmployee);
-            LoadCombo("SELECT [ID Сотрудника], ФИО FROM Сотрудник", "ФИО", "ID Сотрудника", comboBoxOperationEmployee);
-        }
+            comboBoxBook.DataSource = ExecuteQuery("SELECT [ID Книги], Название FROM Книги");
+            comboBoxBook.DisplayMember = "Название";
+            comboBoxBook.ValueMember = "ID Книги";
 
-        private void LoadCombo(string query, string display, string value, ComboBox box)
-        {
-            try
-            {
-                DataTable dt = ExecuteQuery(query);
-                box.DataSource = dt;
-                box.DisplayMember = display;
-                box.ValueMember = value;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Ошибка загрузки списка: " + ex.Message);
-            }
-        }
+            comboBoxReader.DataSource = ExecuteQuery("SELECT [ID Читателя], ФИО FROM Читатель");
+            comboBoxReader.DisplayMember = "ФИО";
+            comboBoxReader.ValueMember = "ID Читателя";
 
-        private void LoadGenres()
-        {
-            try
-            {
-                string query = "SELECT DISTINCT Жанр FROM Книги WHERE Жанр IS NOT NULL AND Жанр <> ''";
-                DataTable dt = ExecuteQuery(query);
-                comboBoxGenre.Items.Clear();
-                comboBoxGenre.Items.Add("");
-                foreach (DataRow row in dt.Rows)
-                {
-                    comboBoxGenre.Items.Add(row["Жанр"].ToString());
-                }
+            comboBoxEmployee.DataSource = ExecuteQuery("SELECT [ID Сотрудника], ФИО FROM Сотрудник");
+            comboBoxEmployee.DisplayMember = "ФИО";
+            comboBoxEmployee.ValueMember = "ID Сотрудника";
 
-                if (comboBoxGenre.Items.Count <= 1)
-                {
-                    comboBoxGenre.Items.Add("Роман");
-                    comboBoxGenre.Items.Add("Детектив");
-                    comboBoxGenre.Items.Add("Фантастика");
-                    comboBoxGenre.Items.Add("Поэзия");
-                    comboBoxGenre.Items.Add("Наука");
-                }
-            }
-            catch (Exception ex)
-            {
-                comboBoxGenre.Items.Clear();
-                comboBoxGenre.Items.Add("");
-                comboBoxGenre.Items.Add("Роман");
-                comboBoxGenre.Items.Add("Детектив");
-                comboBoxGenre.Items.Add("Фантастика");
-                comboBoxGenre.Items.Add("Поэзия");
-                comboBoxGenre.Items.Add("Наука");
-            }
-        }
+            comboBoxBookOp.DataSource = ExecuteQuery("SELECT [ID Книги], Название FROM Книги");
+            comboBoxBookOp.DisplayMember = "Название";
+            comboBoxBookOp.ValueMember = "ID Книги";
 
-        private void HideColumns()
-        {
-            HideColumn(dataGridViewBooks, "ID Книги");
-            HideColumn(dataGridViewReaders, "ID Читателя");
-            HideColumn(dataGridViewEmployees, "ID Сотрудника");
-            HideColumn(dataGridViewLoans, "ID Операции");
-            HideColumn(dataGridViewOperations, "ID Операции");
-        }
-
-        private void HideColumn(DataGridView grid, string columnName)
-        {
-            if (grid.Columns[columnName] != null)
-                grid.Columns[columnName].Visible = false;
+            comboBoxEmployeeOp.DataSource = ExecuteQuery("SELECT [ID Сотрудника], ФИО FROM Сотрудник");
+            comboBoxEmployeeOp.DisplayMember = "ФИО";
+            comboBoxEmployeeOp.ValueMember = "ID Сотрудника";
         }
     }
 }

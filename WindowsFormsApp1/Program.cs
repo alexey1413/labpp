@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Windows.Forms;
 
-namespace WindowsFormsApp1
+namespace LibraryApp
 {
-    internal static class Program
+    static class Program
     {
         [STAThread]
         static void Main()
